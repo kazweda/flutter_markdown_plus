@@ -1000,6 +1000,14 @@ class MarkdownBuilder implements md.NodeVisitor {
     // Force a consistent line height within each text block, derived from the
     // span's own base style so headers/blockquotes keep their correct height
     // while mixed font weights within a block no longer shift line height.
+    // A block with a WidgetSpan (an inline image or formula, for example)
+    // keeps the strut as a minimum line height instead, so that a tall
+    // widget makes its line taller rather than overlapping its neighbours.
+    bool hasWidgetSpan = false;
+    text.visitChildren((InlineSpan span) {
+      hasWidgetSpan = span is WidgetSpan;
+      return !hasWidgetSpan;
+    });
     final TextStyle? baseStyle = text.style ?? styleSheet.p;
     final StrutStyle? strutStyle = baseStyle != null
         ? StrutStyle(
@@ -1007,7 +1015,7 @@ class MarkdownBuilder implements md.NodeVisitor {
             fontSize: baseStyle.fontSize ?? styleSheet.p?.fontSize,
             height: baseStyle.height ?? styleSheet.p?.height,
             leading: 0,
-            forceStrutHeight: true,
+            forceStrutHeight: !hasWidgetSpan,
           )
         : null;
     if (selectable) {

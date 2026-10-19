@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:markdown/markdown.dart' as md;
 
 import 'utils.dart';
 
@@ -472,5 +473,73 @@ void defineTests() {
         expect(headerText.strutStyle!.fontSize! > bodyText.strutStyle!.fontSize!, isTrue);
       },
     );
+
+    testWidgets(
+      'a tall inline widget makes its line taller',
+      (WidgetTester tester) async {
+        // A block with a WidgetSpan keeps the strut as a minimum line height
+        // instead of forcing it, so a tall inline widget (an inline formula,
+        // for example) stays inside its block.
+        const double paragraphFontSize = 14.0;
+        const double widgetHeight = 60.0;
+        final MarkdownStyleSheet styleSheet = MarkdownStyleSheet(
+          p: const TextStyle(fontSize: paragraphFontSize),
+        );
+
+        await tester.pumpWidget(
+          boilerplate(
+            MarkdownBody(
+              data: 'before [tall] after',
+              styleSheet: styleSheet,
+              builders: <String, MarkdownElementBuilder>{
+                'tall': _TallBuilder(widgetHeight),
+              },
+              inlineSyntaxes: <md.InlineSyntax>[_TallSyntax()],
+            ),
+          ),
+        );
+
+        final Text text = tester.widget<Text>(find.byType(Text).first);
+        expect(text.strutStyle, isNotNull);
+        expect(text.strutStyle!.forceStrutHeight, isFalse);
+        expect(text.strutStyle!.fontSize, paragraphFontSize);
+
+        final Rect block = tester.getRect(find.byType(RichText).first);
+        final Rect widget = tester.getRect(find.byKey(const Key('tall')));
+        expect(block.top, lessThanOrEqualTo(widget.top));
+        expect(block.bottom, greaterThanOrEqualTo(widget.bottom));
+      },
+    );
   });
+}
+
+class _TallSyntax extends md.InlineSyntax {
+  _TallSyntax() : super(r'\[tall\]');
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    parser.addNode(md.Element.empty('tall'));
+    return true;
+  }
+}
+
+class _TallBuilder extends MarkdownElementBuilder {
+  _TallBuilder(this.height);
+
+  final double height;
+
+  @override
+  Widget visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    return Text.rich(
+      WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: SizedBox(key: const Key('tall'), width: 20, height: height),
+      ),
+    );
+  }
 }
